@@ -11,15 +11,33 @@ from umqttsimple import MQTTClient
 # Get unique id from these libs
 import ubinascii
 import machine
+import time
 
 # Initialize comms
 from uartremote import *
 st = UartRemote()
 
+KEEP_ALIVE = 5 	# Seconds to keep the connection alive after last publish/update command
+                # Also used as timeout to detect when the robot goes offline
 client_id = ubinascii.hexlify(machine.unique_id())
-topic_sub = b'robot/command'
-topic_pub_stats= b'robot/status/'+client_id
-topic_pub_last_will= b'robot/status/'+client_id+'/online'
+topic_root = b'beekeepers/'+ client_id + b'/'
+topics = {
+    'status' : topic_root+b'status',
+    'command': topic_root+b'command',
+    'response': topic_root+b'response'
+    }
+
+mqtt_client = MQTTClient(client_id, 
+                            mqtt_server, 
+                            mqtt_port,
+                            mqtt_user,
+                            mqtt_password,
+                            keepalive = KEEP_ALIVE # Seconds
+                         ) 
+mqtt_client.set_last_will(topics['status'], b'Offline', retain=True, qos=2)
+
+command = ""
+args = []
 
 # connect to wifi
 def connect_wifi():
@@ -35,41 +53,54 @@ def connect_wifi():
     
 
 def sub_callback(topic, msg):
+    global command, args
     print((topic, msg))
-    if topic == b'robot/command':
-        st.call(msg.decode("UTF-8"))
+    if topic == topics['command']:
+        if not b"," in msg:
+            command = msg.decode("UTF-8")
+            args = []
+        else:
+            items = msg.decode("UTF-8").split(",")
+            command = items[0]
+            args = [ eval(arg) for arg in items[1:] ]
 
-def get_mqtt_client():
+mqtt_client.set_callback(sub_callback)
+
+def connect_mqtt():
+    result = None
     try:
-        # keepalive 20s; after that last will is transmitted by mqtt broker
-        client = MQTTClient(client_id, 
-                            mqtt_server, 
-                            mqtt_port,
-                            mqtt_user,
-                            mqtt_password,
-                            keepalive=20)
-        client.connect()
+        result = mqtt_client.connect()
+        mqtt_client.publish(topics['status'], b'Ready', retain=True)        
+        mqtt_client.subscribe(topics['command'])
+        
     except OSError as e:
-        print(e)
-        return None
+        result = e
+    print('Connected to %s MQTT broker with result %s' % (mqtt_server, result))
 
-    client.set_callback(sub_callback)
 
-    # Set last will to write b'False' when robot goes offline.
-    client.set_last_will(topic_pub_last_will, b'False', retain=True)
-    
-    client.subscribe(topic_sub)
-    client.publish(topic_pub_last_will, b'True')
-    # print('Connected to %s MQTT broker, subscribed to %s topic' % (mqtt_server, topic_sub))
-    return client
 
 connect_wifi()
-mqtt_client = get_mqtt_client()
+connect_mqtt()
+last_update = time.ticks_ms()
+count=0
 while 1:
     try:
         mqtt_client.check_msg()
+        if command:
+            mqtt_client.publish(topics['status'], b'Busy')
+            time.sleep_ms(100)
+            resp = st.call(command, *args, timeout=1500000)
+            mqtt_client.publish(topics['response'], repr(resp)) #repr((command,args)))
+            mqtt_client.publish(topics['status'], b'Ready')
+            command = ""
+            args = []
+            last_update = time.ticks_ms()
+        if time.ticks_ms() > last_update + KEEP_ALIVE*900:
+            #mqtt_client.publish(topics['status'], 'Ready %s' % count, retain=True)
+            #count +=1
+            mqtt_client.publish(topics['status'], 'Ready')
+            last_update = time.ticks_ms()
     except OSError as e:
         print("Reconnecting...")
-        mqtt_client = get_mqtt_client()
-
-
+        connect_mqtt()
+        
