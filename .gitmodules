@@ -1,0 +1,6 @@
+[submodule "SerialTalk"]
+	path = SerialTalk
+	url = https://github.com/antonvh/SerialTalk
+[submodule "mpy-robot-tools"]
+	path = mpy-robot-tools
+	url = https://github.com/antonvh/mpy-robot-tools
