@@ -1,12 +1,16 @@
 # main.py -- put your code here!
-
+# import hub
 from serialtalk import SerialTalk
 from mshub import MSHubSerial
 from pybricks import Direction, Port, ForceSensor, DriveBase, Motor, wait, Stop
 
+# hub.sound.beep()
+
 st = SerialTalk(MSHubSerial('F'))
 switch = ForceSensor(Port.E)
-
+print(st)
+# Hello there
+pass
 # Init drivebase
 r_track = Motor(Port.A)
 l_track = Motor(Port.C, Direction.COUNTERCLOCKWISE)
@@ -24,9 +28,6 @@ TANK_FULL = 155
 def set_tank_level(pct):
     pct = min(max(pct,0),100)
     tanks.run_target(50, pct/100 * TANK_FULL, wait=False)
-    
-def get_tank_level():
-    return tanks.angle()*100//TANK_FULL
 
 def drill_up():
     drill.run_target(200,5,Stop.BRAKE)
@@ -45,30 +46,20 @@ def wait_until(function, condition=True):
     while not function() == condition:
         wait(10)
 
-# while True:
-#     if switch.pressed():
-#         drill_up()
-#         set_tank_level(100)
-#         wait_until(switch.pressed, False)
-#     else:
-#         wait(1000)
-#         tracks.straight(100)
-#         tracks.curve(0, 90)
-#         drill_down()
-#         set_tank_level(0)
-#         wriggle()
-#         drill_up()
-#         tracks.straight(-100)
-#         wait_until(switch.pressed, True)
-
-st.add_command(get_tank_level,"b")
-st.add_command(set_tank_level)
-st.add_command(wriggle)
-st.add_command(drill_down)
-st.add_command(drill_up)
-st.add_command(tracks.straight, name="straight")
-st.add_command(tracks.curve, name="curve")
-st.add_command(switch.pressed, name="resting")
-st.loop()
+while True:
+    if switch.pressed():
+        drill_up()
+        set_tank_level(100)
+        wait_until(switch.pressed, False)
+    else:
+        wait(1000)
+        tracks.straight(100)
+        tracks.curve(0, 90)
+        drill_down()
+        set_tank_level(0)
+        wriggle()
+        drill_up()
+        tracks.straight(-100)
+        wait_until(switch.pressed, True)
 
 
