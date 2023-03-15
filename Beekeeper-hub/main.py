@@ -1,9 +1,7 @@
-# main.py -- put your code here!
-
+import hub
 from serialtalk import SerialTalk
 from mshub import MSHubSerial
 from pybricks import Direction, Port, ForceSensor, DriveBase, Motor, wait, Stop
-import hub
 
 hub.sound.play('sounds/startup')
 
