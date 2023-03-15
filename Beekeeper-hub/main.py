@@ -45,7 +45,7 @@ def status():
     return {
         'rst': resting(),
         'bat': hub.battery.capacity_left(),
-        'chg' : hub.battery.charger_detect(),
+        'chg': 1 if hub.battery.charger_detect() else 0,
         'tnk': get_tank_level(),
         }
 
@@ -87,13 +87,16 @@ def turn(radius=0, angle=90):
 
 st.add_command(get_tank_level,"b")
 st.add_command(set_tank_level, "repr")
-st.add_command(wriggle, "repr")
-st.add_command(drill_down, "repr")
-st.add_command(drill_up, "repr")
-st.add_command(straight, "repr")
-st.add_command(turn, "repr")
+# Can't get name of closures resulting from decorators
+# So adding them explicitly with name=
+st.add_command(wriggle, "repr", name="wriggle")  
+st.add_command(drill_down, "repr", name="drill_down")
+st.add_command(drill_up, "repr", name="drill_up")
+st.add_command(straight, "repr", name="straight")
+st.add_command(turn, "repr", name="turn")
 st.add_command(hub.sound.beep, "repr", name="beep")
 st.add_command(sound_loaded, "repr")
 st.add_command(status, "repr")
 st.loop()
+
 

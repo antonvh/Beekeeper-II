@@ -21,25 +21,18 @@ KEEP_ALIVE = 5 	# Seconds to keep the connection alive after last publish/update
                 # Also used as timeout to detect when the robot goes offline
 client_id = ubinascii.hexlify(machine.unique_id())
 topic_root = b'beekeepers/'+ client_id + b'/'
-# topics = {
-#     'status' : topic_root+b'status',
-#     'command': topic_root+b'command',
-#     'response': topic_root+b'response',
-#     'charging': topic_root+b'charging',
-#     'battery': topic_root+b'battery',
-#     }
 
 cmd_shortcodes = {
-    'FW' : ('straight', (100,)),
-    'BK' : ('straight', (-100,)),
+    'FW' : ('straight', ('b', 100,)),
+    'BK' : ('straight', ('b',-100,)),
     'WG' : ('wriggle', ()),
-    'TL' : ('straight', (0, -90)),
-    'TR' : ('straight', (0, 90)),
+    'TL' : ('straight', ('bb', 0, -90)),
+    'TR' : ('straight', ('bb', 0, 90)),
     'DU' : ('drill_up', ()),
     'DD' : ('drill_down', ()),
-    'T0' : ('set_tank_level', (0,)),
-    'T5' : ('set_tank_level', (50,)),
-    'T9' : ('set_tank_level', (100,)),
+    'T0' : ('set_tank_level', ('b', 0,)),
+    'T5' : ('set_tank_level', ('b', 50,)),
+    'T9' : ('set_tank_level', ('b', 100,)),
  }
 
 def topic(name):
@@ -56,7 +49,12 @@ mqtt_client.set_last_will(topic('status'), b'Offline', retain=True, qos=2)
 
 command = ""
 args = []
-status = {}
+status = {
+        'rst': -1,
+        'bat': -1,
+        'chg' : -1,
+        'tnk': -1,
+    }
 
 # connect to wifi
 def connect_wifi():
@@ -72,10 +70,10 @@ def connect_wifi():
     st.call('sound_loaded')
     
 
-def sub_callback(topic, msg):
+def sub_callback(top, msg):
     global command, args
-    # print((topic, msg)) # debug
-    if topic == topic('command'):
+    print((top, msg)) # debug
+    if top == topic('command'):
         # Someone posted a command for us, let's parse it.
         if not b"," in msg:
             command = msg.decode("UTF-8")
@@ -84,10 +82,11 @@ def sub_callback(topic, msg):
             items = msg.decode("UTF-8").split(",")
             command = items[0]
             args = [ eval(arg) for arg in items[1:] ]
-    if topic == topic('short'):
-        if command in cmd_shortcodes:
-            command = cmd_shortcodes[command][0]
-            args = cmd_shortcodes[command][1]
+    if top == topic('short'):
+        key = msg.decode("UTF-8")
+        if key in cmd_shortcodes:
+            command = cmd_shortcodes[key][0]
+            args = cmd_shortcodes[key][1]
 
 mqtt_client.set_callback(sub_callback)
 
@@ -95,9 +94,11 @@ def connect_mqtt():
     result = None
     try:
         result = mqtt_client.connect()
-        mqtt_client.publish(topic('status'), b'Ready', retain=True)        
+        mqtt_client.publish(topic('status'), b'Ready', retain=True)
+        mqtt_client.publish(topic('command'), b' ')
+        mqtt_client.publish(topic('short'), b' ')
         mqtt_client.subscribe(topic('command'))
-        
+        mqtt_client.subscribe(topic('short'))
     except OSError as e:
         result = e
     print('Connected to %s MQTT broker with result %s' % (mqtt_server, result))
@@ -129,9 +130,13 @@ while 1:
             # mqtt_client.publish(topics['response'], repr(resp)) #repr((command,args)))
             command = ""
             args = []
+            publish_status()
             last_update = time.ticks_ms()
         if time.ticks_ms() > last_update + KEEP_ALIVE*900:
-            mqtt_client.publish(topic('status'), 'Ready')
+            ack, data = st.call('status')
+            if type(data) == dict:
+                status = data
+            publish_status()
             last_update = time.ticks_ms()
     except OSError as e:
         print("Reconnecting...")
