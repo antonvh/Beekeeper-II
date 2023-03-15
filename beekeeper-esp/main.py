@@ -67,7 +67,6 @@ def connect_wifi():
         while not sta_if.isconnected():
             pass
     print('network config:', sta_if.ifconfig())
-    st.call('sound_loaded')
     
 
 def sub_callback(top, msg):
@@ -105,16 +104,31 @@ def connect_mqtt():
 
 
 def publish_status():
-    if status['rst']:
+    if status['rst'] == 1:
         mqtt_client.publish(topic('status'), b'Resting')
+    elif status['rst'] == -1:
+        mqtt_client.publish(topic('status'), b'No Brick')
     else:
         mqtt_client.publish(topic('status'), b'Ready')
     mqtt_client.publish(topic('battery'), str(status['bat']))
     mqtt_client.publish(topic('charging'), str(status['chg']))
 
 
+# Wait until wifi is connected
 connect_wifi()
+# Wait until mqtt is connected
 connect_mqtt()
+#Wait until brick is connected
+while 1:
+    ack, data = st.call('status',timeout=15000)
+    if type(data) == dict:
+        # We have a status reply!
+        print(ack, data)
+        status = data
+        publish_status()
+        st.call('sound_loaded')
+        break
+       
 last_update = time.ticks_ms()
 
 while 1:
