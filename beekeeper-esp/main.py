@@ -20,7 +20,7 @@ st = UartRemote()
 KEEP_ALIVE = 5 	# Seconds to keep the connection alive after last publish/update command
                 # Also used as timeout to detect when the robot goes offline
 client_id = ubinascii.hexlify(machine.unique_id())
-topic_root = b'beekeepers/'+ client_id + b'/'
+topic_root = b'robots/'+ client_id + b'/'
 
 cmd_shortcodes = {
     'FW' : ('straight', ('b', 100,)),
